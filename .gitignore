@@ -1,0 +1,10 @@
+bin/
+obj/
+*.user
+.vs/
+TestResults/
+__pycache__/
+*.pyc
+
+# Local map data backups, not source
+river_spline_backup/

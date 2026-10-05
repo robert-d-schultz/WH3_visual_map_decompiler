@@ -1,0 +1,276 @@
+<Window x:Class="TwMapDecompiler.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Total War Map Decompiler"
+        Width="1100" Height="800" MinWidth="940" MinHeight="620"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <Style TargetType="TextBox" x:Key="PathBox">
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,2"/>
+            <Setter Property="Padding" Value="4,3"/>
+        </Style>
+        <Style TargetType="Button" x:Key="BrowseButton">
+            <Setter Property="Content" Value="…"/>
+            <Setter Property="Width" Value="28"/>
+            <Setter Property="Margin" Value="4,2,0,2"/>
+        </Style>
+        <Style TargetType="TextBlock" x:Key="FieldLabel">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="3*"/>
+                <ColumnDefinition Width="2*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Column="0" Grid.Row="0" Margin="0,0,10,0">
+                <GroupBox Header="Source" Padding="6">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/><RowDefinition/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="RPFM folder"
+                                       ToolTip="RPFM 5 install folder (contains rpfm_server.exe). The server is started from here if it is not already running."/>
+                            <TextBox x:Name="RpfmFolderBox" Grid.Row="0" Grid.Column="1" Style="{StaticResource PathBox}"/>
+                            <Button Grid.Row="0" Grid.Column="2" Style="{StaticResource BrowseButton}" Click="BrowseRpfmFolder"/>
+                            <StackPanel Grid.Row="0" Grid.Column="3" Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Game" Margin="12,0,8,0"/>
+                                <ComboBox x:Name="GameCombo" Width="70" VerticalContentAlignment="Center" Margin="0,2"
+                                          SelectionChanged="OnGameChanged">
+                                    <ComboBoxItem Content="WH3" IsSelected="True"/>
+                                    <ComboBoxItem Content="3K"/>
+                                </ComboBox>
+                            </StackPanel>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Campaign"
+                                       ToolTip="Campaigns found in the game packs. Picking one sets the terrain folder, the tree list, the battle path and the world width."/>
+                            <ComboBox x:Name="CampaignCombo" Grid.Row="1" Grid.Column="1" Margin="0,2" IsEditable="True"
+                                      VerticalContentAlignment="Center" SelectionChanged="OnCampaignChanged"/>
+                            <Button x:Name="ReloadCampaignsButton" Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="2" Content="Reload"
+                                    Padding="10,2" Margin="6,2,0,2" HorizontalAlignment="Left" Click="ReloadCampaigns"/>
+
+                        </Grid>
+
+                        <Border Margin="0,6,0,0" Padding="8,6" Background="#11000000" CornerRadius="3">
+                            <StackPanel>
+                                <TextBlock x:Name="CampaignStatus" Foreground="Gray" TextWrapping="Wrap"
+                                           Text="Loading campaigns from the game packs..."/>
+                                <Grid x:Name="CampaignDetails" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.Resources>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Margin" Value="0,1"/>
+                                        </Style>
+                                    </Grid.Resources>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Terrain" Foreground="Gray" Margin="0,1,12,1"/>
+                                    <TextBlock x:Name="DetailTerrain" Grid.Row="0" Grid.Column="1" FontFamily="Consolas" TextWrapping="Wrap"/>
+
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Trees" Foreground="Gray" Margin="0,1,12,1"/>
+                                    <TextBlock x:Name="DetailTrees" Grid.Row="1" Grid.Column="1" FontFamily="Consolas" TextWrapping="Wrap"/>
+
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Battles" Foreground="Gray" Margin="0,1,12,1"/>
+                                    <TextBlock x:Name="DetailBattles" Grid.Row="2" Grid.Column="1" FontFamily="Consolas" TextWrapping="Wrap"/>
+
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="World width" Foreground="Gray" Margin="0,1,12,1"/>
+                                    <TextBlock x:Name="DetailWidth" Grid.Row="3" Grid.Column="1" FontFamily="Consolas"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </GroupBox>
+
+                <Expander x:Name="ResizeExpander" Margin="0,8,0,0">
+                    <Expander.Header>
+                        <TextBlock x:Name="ResizeHeader" Text="Resize the map"/>
+                    </Expander.Header>
+                    <StackPanel Margin="6">
+                        <StackPanel.Resources>
+                            <Style TargetType="TextBox" BasedOn="{StaticResource PathBox}">
+                                <Setter Property="Width" Value="56"/>
+                                <Setter Property="Margin" Value="0,2,14,2"/>
+                            </Style>
+                        </StackPanel.Resources>
+                        <TextBlock x:Name="ResizeSource" Foreground="Gray" TextWrapping="Wrap"/>
+
+                        <TextBlock Text="1. Scale" FontWeight="SemiBold" Margin="0,8,0,2"/>
+                        <StackPanel Orientation="Horizontal"
+                                    ToolTip="Scales the whole map uniformly. The factor is snapped to the nearest hex map Terry can hold: an even number of hexes across, at most 2048 each way. Terrain maps are resampled (indexed maps nearest-neighbour, heights, colours, masks and normals smoothly); positions, heights, prop scales, light and probe radii, sound and environment volume sizes and outlines scale with them. Hexes and texels keep their world size. Empty = 1.">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Factor"/>
+                            <TextBox x:Name="ScaleBox" TextChanged="OnResizeChanged"/>
+                            <TextBlock x:Name="ScaleResult" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <TextBlock x:Name="ScaleNote" Foreground="Gray" FontSize="11" TextWrapping="Wrap"/>
+
+                        <TextBlock Text="2. Pad (hexes of the scaled hex map)" FontWeight="SemiBold" Margin="0,8,0,2"/>
+                        <StackPanel Orientation="Horizontal"
+                                    ToolTip="Adds hexes to each side of the scaled map. One hex is 2 tile map pixels, 4 shroud height pixels and 8 height / blend / overlay / normal map pixels; the new pixels repeat the map's edge (trees start out bare). world_width grows to match, and padding the left or bottom moves every prop and environment volume with the map. Top is north. Left + right must be even to keep the hex map's width even. Empty = 0.">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Left"/>
+                            <TextBox x:Name="PadLeftBox" TextChanged="OnResizeChanged"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Right"/>
+                            <TextBox x:Name="PadRightBox" TextChanged="OnResizeChanged"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Top"/>
+                            <TextBox x:Name="PadTopBox" TextChanged="OnResizeChanged"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Bottom"/>
+                            <TextBox x:Name="PadBottomBox" TextChanged="OnResizeChanged"/>
+                        </StackPanel>
+
+                        <Border Margin="0,6,0,0" Padding="8,6" Background="#11000000" CornerRadius="3">
+                            <TextBlock x:Name="ResizeResult" TextWrapping="Wrap"/>
+                        </Border>
+                    </StackPanel>
+                </Expander>
+
+                <Expander Header="Overrides (advanced - empty fields keep the vanilla names and paths)" Margin="0,8,0,0">
+                    <StackPanel Margin="6">
+                        <TextBlock Text="Rename the output" FontWeight="SemiBold" Margin="0,0,0,2"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/><RowDefinition/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Map name"
+                                       ToolTip="Name of the new map / campaign Terry project. Empty: the campaign's terrain_location"/>
+                            <TextBox x:Name="MapNameBox" Grid.Row="0" Grid.Column="1" Style="{StaticResource PathBox}" Margin="0,2,10,2"/>
+
+                            <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource FieldLabel}" Text="Campaign name"
+                                       ToolTip="Campaign name for the water material and the Weather/.environment file. Empty: the selected campaign"/>
+                            <TextBox x:Name="CampaignNameBox" Grid.Row="0" Grid.Column="3" Style="{StaticResource PathBox}"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Battle name"
+                                       ToolTip="Name of the battle terrain Terry project. Empty: the campaign's battle_path"/>
+                            <TextBox x:Name="BattleMapNameBox" Grid.Row="1" Grid.Column="1" Style="{StaticResource PathBox}" Margin="0,2,10,2"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource FieldLabel}" Text="Devastated name"
+                                       ToolTip="Name of the devastated Terry project (the Devastated project step). Empty: the campaign's terrain_location_devastate, or the map name with _map_devastate for _map when renamed"/>
+                            <TextBox x:Name="DevastatedNameBox" Grid.Row="1" Grid.Column="3" Style="{StaticResource PathBox}"/>
+                        </Grid>
+
+                        <TextBlock Text="Read from here instead of the packs" FontWeight="SemiBold" Margin="0,8,0,2"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Campaign terrain folder"
+                                       ToolTip="Local compiled map folder (global_props.bin, full_height_map.dds, ...) instead of terrain/campaigns/&lt;terrain_location&gt; from the packs"/>
+                            <TextBox x:Name="InputFolderBox" Grid.Row="0" Grid.Column="1" Style="{StaticResource PathBox}" TextChanged="OnOverrideChanged"/>
+                            <Button Grid.Row="0" Grid.Column="2" Style="{StaticResource BrowseButton}" Click="BrowseInputFolder"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Tree list"
+                                       ToolTip="Local trees.campaign_tree_list instead of campaign_maps/&lt;map_name&gt;/display/trees/ from the packs"/>
+                            <TextBox x:Name="TreeListBox" Grid.Row="1" Grid.Column="1" Style="{StaticResource PathBox}" TextChanged="OnOverrideChanged"/>
+                            <Button Grid.Row="1" Grid.Column="2" Style="{StaticResource BrowseButton}" Click="BrowseTreeList"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Tile database"
+                                       ToolTip="Local terrain/tiles/campaign/_tile_database/tiles folder (tile set colours are read from _settings.bin in the _tile_database folder above it)"/>
+                            <TextBox x:Name="TileDbBox" Grid.Row="2" Grid.Column="1" Style="{StaticResource PathBox}" TextChanged="OnOverrideChanged"/>
+                            <Button Grid.Row="2" Grid.Column="2" Style="{StaticResource BrowseButton}" Click="BrowseTileDb"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Battles folder"
+                                       ToolTip="Local terrain/battles/&lt;battle_path&gt; folder with blm_*.compressed_map catchment maps"/>
+                            <TextBox x:Name="BattlesBox" Grid.Row="3" Grid.Column="1" Style="{StaticResource PathBox}" TextChanged="OnOverrideChanged"/>
+                            <Button Grid.Row="3" Grid.Column="2" Style="{StaticResource BrowseButton}" Click="BrowseBattles"/>
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Blend textures"
+                                       ToolTip="Local warscape_asset_variation_db/terrain_textures_campaign.assetdb.xml, the blend map's texture list and colours"/>
+                            <TextBox x:Name="BlendTexturesBox" Grid.Row="4" Grid.Column="1" Style="{StaticResource PathBox}" TextChanged="OnOverrideChanged"/>
+                            <Button Grid.Row="4" Grid.Column="2" Style="{StaticResource BrowseButton}" Click="BrowseBlendTextures"/>
+                        </Grid>
+
+                        <TextBlock Text="Write to this Assembly Kit" FontWeight="SemiBold" Margin="0,8,0,2"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Assembly Kit"
+                                       ToolTip="Assembly Kit root (contains raw_data and working_data). Empty: the path configured in RPFM"/>
+                            <TextBox x:Name="AssemblyKitBox" Grid.Column="1" Style="{StaticResource PathBox}"
+                                     TextChanged="OnOutputPathChanged"/>
+                            <Button Grid.Column="2" Style="{StaticResource BrowseButton}" Click="BrowseAssemblyKit"/>
+                        </Grid>
+
+                        <TextBlock x:Name="OutputNote" Foreground="Gray" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Text="The lighting .environment is written to the Assembly Kit's working_data/Weather either way."/>
+                    </StackPanel>
+                </Expander>
+            </StackPanel>
+
+            <GroupBox Grid.Column="1" Grid.Row="0" Grid.RowSpan="2" Header="Steps" Padding="6">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button Content="All" Width="50" Click="SelectAllSteps"/>
+                        <Button Content="None" Width="50" Margin="6,0,0,0" Click="SelectNoSteps"/>
+                    </StackPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="StepsList"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </GroupBox>
+
+            <GroupBox Grid.Column="0" Grid.Row="1" Header="Log" Padding="6" Margin="0,8,10,0">
+                <TextBox x:Name="LogBox" IsReadOnly="True" FontFamily="Consolas" FontSize="12"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                         TextWrapping="NoWrap" AcceptsReturn="True"/>
+            </GroupBox>
+        </Grid>
+
+        <Grid Grid.Row="1" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Grid Grid.Column="0" Margin="0,0,10,0">
+                <ProgressBar x:Name="Progress" Height="26"/>
+                <TextBlock x:Name="ProgressText" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Grid>
+            <Button x:Name="OpenOutputButton" Grid.Column="1" Content="Open projects" Padding="14,4" Margin="0,0,8,0" Click="OpenOutput"/>
+            <Button x:Name="RunButton" Grid.Column="2" Content="Run" Padding="28,4" FontWeight="Bold" Click="RunClicked"/>
+            <Button x:Name="CancelButton" Grid.Column="3" Content="Cancel" Padding="14,4" Margin="8,0,0,0" IsEnabled="False" Click="CancelClicked"/>
+        </Grid>
+    </Grid>
+</Window>
