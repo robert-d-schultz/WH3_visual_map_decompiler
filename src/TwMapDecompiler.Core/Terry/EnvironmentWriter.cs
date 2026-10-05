@@ -5,8 +5,8 @@ namespace TwMapDecompiler.Core.Terry;
 /// <summary>
 /// Builds the Weather/.environment file the campaign Terry project points at.
 ///
-/// CA ships one per map next to the templates (assembly_kit_tow has
-/// default_battle_oldworld.environment, assembly_kit_iee has default_battle_iee.environment).
+/// A hand-made project has one per map next to the templates (The Old World has
+/// default_battle_oldworld.environment, an IEE project has default_battle_iee.environment).
 /// This makes the same thing: a copy of working_data/Weather/terry_default_battle.environment
 /// with its empty post_processes attribute filled in from the compiled map's own lighting -
 /// the snow and corruption overlay materials, which is what makes those effects show up in Terry.

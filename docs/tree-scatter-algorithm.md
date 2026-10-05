@@ -53,7 +53,7 @@ Compiling the same tree map twice produces a **byte-identical**
 and variant are pure functions of the grid cell.
 
 They are also independent of map size and of the map's content. Comparing the
-2880x1941 probes against CA's 4096x3549 `cr_oldworld_map_1` at the same (i,row):
+2880x1941 probes against The Old World's 4096x3549 `cr_oldworld_map_1` at the same (i,row):
 `RotationIndex` agrees for **99.98%** of shared cells (chance is 16.7%), and
 positions agree to a mean difference of 0.0002, which is float32 noise from the
 slightly different `dx`. The three probes (grass / rocks_small / 4x4 tile) are
@@ -88,9 +88,9 @@ the top.
 **Trap:** CA's shipped `assembly_kit\...\wh3_main_combi_map_1` tree TIFF is
 itself stored upside down — its vegetation only lands on land when its own
 height map is flipped. It is the one file that makes the tree map look
-un-flipped, and `reference/4 trees.py` was written against it. Use
-`assembly_kit_tow\...\cr_oldworld_map_1` or
-`assembly_kit_iee\...\cr_combi_expanded_map_1` instead.
+un-flipped, and `reference/4 trees.py` was written against it. Use the tree
+TIFF of a hand-made project instead, such as The Old World's `cr_oldworld_map_1`
+(the author's own map) or `cr_combi_expanded_map_1`.
 
 ## Compile: about half solved
 

@@ -1637,8 +1637,8 @@ public sealed class Decompiler(DecompileSettings settings)
     /// Writes the Weather/.environment the project's global_lighting points at, which is
     /// part of setting the project up rather than a step of its own.
     ///
-    /// CA ships one per map next to the templates (assembly_kit_tow has
-    /// default_battle_oldworld.environment, assembly_kit_iee has default_battle_iee.environment).
+    /// A hand-made project has one per map next to the templates (The Old World has
+    /// default_battle_oldworld.environment, an IEE project has default_battle_iee.environment).
     /// This makes the same thing: a copy of working_data/Weather/terry_default_battle.environment
     /// with its empty post_processes attribute filled in from the compiled map's own lighting -
     /// the snow and corruption overlay materials, which is what makes those effects show up in Terry.
@@ -1706,7 +1706,7 @@ public sealed class Decompiler(DecompileSettings settings)
     /// <summary>
     /// The battle terrain project CA keeps beside each campaign map (terrain/battles/&lt;map&gt;):
     /// the catchment override PNGs plus a skeleton .terry whose 2x2 zero height / sea height
-    /// TIFFs and 4x4 single-colour tile / climate maps are placeholders, exactly as in CA's
+    /// TIFFs and 4x4 single-colour tile / climate maps are placeholders, exactly as in The Old World's
     /// cr_oldworld_map battle project. Existing placeholders are reused, never overwritten.
     /// </summary>
     private void RunBattleProject(Action<string> log, TerryIdGenerator ids)

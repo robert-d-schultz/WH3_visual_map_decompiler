@@ -176,7 +176,9 @@ sorted by RGB value. Every CA tree TIFF is laid out that way (the white last ent
 is `tree_large_burnt`, not a sentinel), and the result matches the table of CA's
 `wh3_main_combi_map_1` tree TIFF exactly. 255 means no vegetation.
 
-The layout of both projects follows CA's `assembly_kit_tow` ones. The campaign
+The layout of both projects follows the author's own The Old World map
+(`cr_oldworld_map_1`), a campaign built in Terry and used throughout as the
+reference for what a hand-made project looks like. The campaign
 project holds `tile_map.png` and `lf_normal.png` next to the TIFFs. The battle
 project (`terrain/battles/cr_oldworld_map`) holds the three catchment override
 PNGs plus a skeleton `.terry` whose 2x2 zero Height / HeightSea TIFFs and 4x4
@@ -184,8 +186,8 @@ single-colour `tile_map.png` / `climate_map.png` are placeholders; the tool
 writes the same placeholders, and never overwrites existing ones.
 
 The campaign project's `global_lighting` points at a Weather environment file
-written as part of setting the project up, the way CA ships one per map
-(`assembly_kit_tow` has `default_battle_oldworld.environment`, `assembly_kit_iee`
+written as part of setting the project up, the way a hand-made project has one
+per map (The Old World has `default_battle_oldworld.environment`, an IEE project
 has `default_battle_iee.environment`): a copy of
 `working_data/Weather/terry_default_battle.environment` whose empty
 `post_processes` attribute is filled in from the map's own lighting - follow
@@ -213,7 +215,7 @@ the spheres and cylinders that fade the lighting over to a local
 Skavenblight its green murk and Cathay its haze. They get a layer of their own,
 `_environments`, one entity per volume carrying `ECEnvironmentVolume` plus
 `ECDoubleSphere` or `ECDoubleCylinder`, collected into logical layers by
-environment name the way CA's own `cr_oldworld_map_1` does it. The combi map has
+environment name the way The Old World's `cr_oldworld_map_1` does it. The combi map has
 66 of them (1 sphere, 65 cylinders) across 18 environments.
 
 One attribute does not survive compilation: a cylinder's `height`, which is
@@ -251,15 +253,15 @@ The files are found by the paths the map names, not by where they used to live,
 so they follow the game's lighting as it moves between updates.
 
 `lf_normal.png` is an ordinary RGB normal map, which Terry compiles to DXT5nm
-(`..._normal.*` -> `dxt5n` in rules.bob). Checked against CA's oldworld project
+(`..._normal.*` -> `dxt5n` in rules.bob). Checked against The Old World project
 and its height TIFF: R and G follow the same signs and orientation as the DDS's
 alpha and green channels (correlation with the height gradient 0.78 / 0.75),
 B is Z, alpha is opaque.
 
 `world_width` comes from `campaign_map_playable_areas` (`maxx - minx`; 961.3 for
 Immortal Empires), so it is not a setting. Without a matching row it falls back
-to the tree list header (oldworld tree list says 1367.396, CA's .terry says
-1367.4), and failing that to height-map-width / 12 with a warning.
+to the tree list header (The Old World's tree list says 1367.396, its .terry
+says 1367.4), and failing that to height-map-width / 12 with a warning.
 
 ## Devastated maps
 

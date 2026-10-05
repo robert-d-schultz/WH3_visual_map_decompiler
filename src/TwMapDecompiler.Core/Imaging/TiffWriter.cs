@@ -3,8 +3,8 @@ using BitMiracle.LibTiff.Classic;
 namespace TwMapDecompiler.Core.Imaging;
 
 /// <summary>
-/// Writes the TIFF flavours Terry expects (verified against CA's cr_oldworld_map_1
-/// project): LZW-compressed, top-left orientation, single strip layouts of
+/// Writes the TIFF flavours Terry expects (verified against The Old World's
+/// cr_oldworld_map_1 project): LZW-compressed, top-left orientation, single strip layouts of
 /// 8-bit gray / 8-bit palette / 32-bit float gray / 8-bit RGBA.
 /// </summary>
 public static class TiffWriter

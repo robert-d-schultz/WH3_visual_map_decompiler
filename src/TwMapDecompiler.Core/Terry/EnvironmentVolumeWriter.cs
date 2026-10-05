@@ -25,7 +25,7 @@ public static class EnvironmentVolumeWriter
 
     /// <summary>
     /// Height of a cylinder volume. The compiled file drops the attribute, so it cannot be
-    /// recovered; 0 is what CA's cr_oldworld_map_1 uses for 205 of its 247 cylinders.
+    /// recovered; 0 is what The Old World's cr_oldworld_map_1 uses for 205 of its 247 cylinders.
     /// </summary>
     public const double CylinderHeight = 0;
 
