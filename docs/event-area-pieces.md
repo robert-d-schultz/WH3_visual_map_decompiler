@@ -4,7 +4,7 @@ Notes on the per-event-area "pieces" added by the 2026 game update, in
 `terrain/campaigns/wh3_main_combi_map_1/pieces/` and the pieces-only map
 `terrain/campaigns/wh3_main_combi_map_devastate_1/`, September 2026. Worked out
 from a full extraction of both maps (202 pieces each). The tool uses them to
-build the devastated project (the Devastated project step, see the README's "Devastated maps").
+build the devastated project (the Devastated project step, see [devastated-project.md](devastated-project.md)).
 
 ## What a piece is
 
@@ -250,7 +250,7 @@ What follows from it:
   game matches a record against the live (main map) river's x and z. Without
   them BOB writes no `rivers` files and no river turns to lava. The decompiler
   writes every vanilla river into the devastated project, with the devastate
-  map's material, as CA's project has them (see the README's devastated map).
+  map's material, as CA's project has them (see [devastated-project.md](devastated-project.md#rivers)).
 - Un-devastating is real. When an area drops out of the campaign's active
   event areas (script `deactivate_campaign_map_event_area`, console
   `event_area_deactivate`), RVA 0x2711428 queues the normal map's piece
