@@ -29,7 +29,7 @@ internal sealed class AppSettings
     public string PadTop { get; set; } = "";
     public string PadBottom { get; set; } = "";
     public int GameIndex { get; set; }
-    public bool ReconstructHeight { get; set; } = true;
+    public bool RefineHeight { get; set; }
     public bool AddCustomCultures { get; set; } = true;
 
     private static string FilePath => Path.Combine(
@@ -67,7 +67,7 @@ internal sealed class AppSettings
         window.PadTopBox.Text = settings.PadTop;
         window.PadBottomBox.Text = settings.PadBottom;
         window.GameCombo.SelectedIndex = settings.GameIndex;
-        window.ReconstructHeightBox.IsChecked = settings.ReconstructHeight;
+        window.RefineHeightBox.IsChecked = settings.RefineHeight;
         window.AddCustomCulturesBox.IsChecked = settings.AddCustomCultures;
     }
 
@@ -93,7 +93,7 @@ internal sealed class AppSettings
             PadTop = window.PadTopBox.Text,
             PadBottom = window.PadBottomBox.Text,
             GameIndex = window.GameCombo.SelectedIndex,
-            ReconstructHeight = window.ReconstructHeightBox.IsChecked == true,
+            RefineHeight = window.RefineHeightBox.IsChecked == true,
             AddCustomCultures = window.AddCustomCulturesBox.IsChecked == true,
         };
         try

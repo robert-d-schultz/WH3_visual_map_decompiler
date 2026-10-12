@@ -71,9 +71,9 @@ if (args.Length < 1 || args.Contains("--help") || args.Contains("-h"))
                                          both Terry projects and the lighting environment go under it
 
         Other:
-          --raw-height                   Write the BC6H-decoded heights as they are, instead of
-                                         recovering detail from lf_normal.dds (much faster, but
-                                         the compression's block stepping stays in)
+          --refine-height                Move each land height within its full_logic_map step to
+                                         fit lf_normal.dds (a minute or two; only helps where
+                                         lf_normal.dds was made from the same heights)
           --no-custom-cultures           Do not add the modded cultures (mixer_nag_nagash, ...) to
                                          the culture masks of the vanilla cultures they follow
           --seed <int>                   Fixed random seed for entity ids
@@ -126,7 +126,7 @@ var settings = new DecompileSettings
     Game = game,
     WorldWidthOverride = GetOption("--world-width") is { } w ? double.Parse(w, CultureInfo.InvariantCulture) : null,
     RandomSeed = GetOption("--seed") is { } s ? int.Parse(s) : null,
-    ReconstructHeightFromNormals = !args.Contains("--raw-height"),
+    RefineHeightWithNormals = args.Contains("--refine-height"),
     AddCustomCultures = !args.Contains("--no-custom-cultures"),
     DevastatedMapName = GetOption("--devastated-name"),
     Padding = GetOption("--pad") is { } pad ? ParsePadding(pad) : MapPadding.None,

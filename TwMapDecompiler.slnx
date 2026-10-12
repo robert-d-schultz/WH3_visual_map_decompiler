@@ -7,9 +7,4 @@
   <Folder Name="/tests/">
     <Project Path="tests/TwMapDecompiler.Tests/TwMapDecompiler.Tests.csproj" />
   </Folder>
-  <Folder Name="/tools/">
-    <Project Path="tools/SyntheticTerrain/SyntheticTerrain.csproj" />
-    <Project Path="tools/HeightReconstructionBench/HeightReconstructionBench.csproj" />
-    <Project Path="tools/RoughnessCheck/RoughnessCheck.csproj" />
-  </Folder>
 </Solution>

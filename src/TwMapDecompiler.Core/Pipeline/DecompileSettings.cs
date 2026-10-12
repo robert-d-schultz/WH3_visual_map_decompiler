@@ -83,11 +83,11 @@ public sealed record DecompileSettings
     public TileGame Game { get; init; } = TileGame.Warhammer3;
 
     /// <summary>
-    /// Recovers the height detail BC6H quantized away by solving the height field against
-    /// lf_normal.dds (see the README). Turning it off writes the decoded heights as they
-    /// are - quick, but with the compressor's 4x4 block stepping left in.
+    /// Moves each land height within its full_logic_map step to fit lf_normal.dds
+    /// (<see cref="Imaging.LogicMapHeights.Refine"/>): normals about 20% closer to the source
+    /// on The Old World, where both come from the same heights.
     /// </summary>
-    public bool ReconstructHeightFromNormals { get; init; } = true;
+    public bool RefineHeightWithNormals { get; init; }
 
     /// <summary>
     /// Adds the hardcoded modded cultures (<see cref="Bmd.CultureMask.CustomCultures"/>) to the

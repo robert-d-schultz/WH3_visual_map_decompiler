@@ -25,28 +25,28 @@ public partial class MainWindow : Window
     /// Sub-option of the Height map step, shown indented under it in the steps list. It is
     /// built once and re-added on every refresh, so its state survives the list rebuild.
     /// </summary>
-    internal readonly CheckBox ReconstructHeightBox = new()
+    internal readonly CheckBox RefineHeightBox = new()
     {
-        IsChecked = true,
+        IsChecked = false,
         Margin = new Thickness(20, 0, 0, 6),
         Content = new StackPanel
         {
             Children =
             {
-                new TextBlock { Text = "Recover detail from the normal map" },
+                new TextBlock { Text = "Refine the heights with the normal map" },
                 new TextBlock
                 {
-                    Text = "Slow: ~6 minutes on a campaign map",
+                    Text = "A minute or two; only helps where lf_normal.dds was made from the same heights",
                     FontSize = 11,
                     Foreground = Brushes.Gray,
                 },
             },
         },
-        ToolTip = "Solves the height field against lf_normal.dds to undo BC6H's 4x4 block stepping, " +
-                  "which costs minutes and a few GB. Off, the decoded heights are written as they are.",
+        ToolTip = "Moves each land height within its full_logic_map.compressed_map step to fit lf_normal.dds. " +
+                  "The heights still recompile to the same logic map.",
     };
 
-    /// <summary>Sub-option of the Prop layers step, handled like <see cref="ReconstructHeightBox"/>.</summary>
+    /// <summary>Sub-option of the Prop layers step, handled like <see cref="RefineHeightBox"/>.</summary>
     internal readonly CheckBox AddCustomCulturesBox = new()
     {
         IsChecked = true,
@@ -326,7 +326,7 @@ public partial class MainWindow : Window
             BlendTexturesPath = OrNull(BlendTexturesBox.Text),
             AssemblyKitFolder = OrNull(AssemblyKitBox.Text),
             Game = GameCombo.SelectedIndex == 1 ? TileGame.ThreeKingdoms : TileGame.Warhammer3,
-            ReconstructHeightFromNormals = ReconstructHeightBox.IsChecked == true,
+            RefineHeightWithNormals = RefineHeightBox.IsChecked == true,
             AddCustomCultures = AddCustomCulturesBox.IsChecked == true,
             DevastatedMapName = OrNull(DevastatedNameBox.Text),
         };
@@ -387,13 +387,13 @@ public partial class MainWindow : Window
             _stepBoxes[info.Id] = box;
             StepsList.Items.Add(box);
 
-            // The reconstruction option belongs to the height step: indented under it, and
-            // only usable while that step is on.
+            // Sub-options belong to their step: indented under it, and only usable while that
+            // step is on.
             if (info.Id == StepId.Height)
             {
-                BindingOperations.SetBinding(ReconstructHeightBox, IsEnabledProperty,
+                BindingOperations.SetBinding(RefineHeightBox, IsEnabledProperty,
                     new Binding(nameof(CheckBox.IsChecked)) { Source = box });
-                StepsList.Items.Add(ReconstructHeightBox);
+                StepsList.Items.Add(RefineHeightBox);
             }
             else if (info.Id == StepId.Layers)
             {

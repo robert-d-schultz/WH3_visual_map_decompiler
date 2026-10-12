@@ -128,7 +128,7 @@ patch-grid size for the resized tile map (see below).
 | Step | Input | Output | Reference script |
 |---|---|---|---|
 | Prop layers | global_props.bin + global_props_sound.bin + models/ (baked river meshes) + region_to_province_junctions + prefab_types | `<map>.<id>.layer` per province (+ `_global`), rivers as river splines (see [Rivers](#rivers)) | 1 |
-| Height map | full_height_map.dds (BC6H) | `.height` (red) + `.sea_height` (green) 32-bit float TIFFs | 3 / 33 |
+| Height map | full_logic_map.compressed_map (16-bit) + full_height_map.dds (BC6H) | `.height` (from the logic map) + `.sea_height` (BC6H green) 32-bit float TIFFs | 3 |
 | Shroud height | shroud_heights.dds (R32F) | `.height_shroud` float TIFF | (new) |
 | Blend map | global_map/global_blend.dds (L8) | `.blend` indexed TIFF | 2 |
 | Colour overlay | colour_overlay.dds (BC1) | `.color_overlay` RGBA TIFF | (new) |
@@ -363,9 +363,15 @@ devastation layer can express:
 - The layers are built from the *vanilla compiled* maps, so they hold the
   devastation itself, and edits to the main project show through them. A map
   written whole doesn't let them through: its references are hidden.
-- A heights layer is exact to about 1 float ulp.
-- The land height isn't reconstructed against the normals: the main project's
-  reconstructed heights lie underneath, and the craters add to them.
+- The sea and shroud height layers are exact to about 1 float ulp.
+- The devastate map ships no logic map. The land craters are the devastated
+  BC6H decode over vanilla's logic-map heights (what the main project has), in
+  the blocks the pieces change. CA re-encoded every block of a piece, so most
+  of a piece differs by BC6H noise alone: the delta is kept where its
+  magnitude, blurred (sigma 2 texels), clears 0.02 to 0.05 (smoothstep). On
+  combi, 1% of vanilla's own BC6H noise gets through that mask, real craters
+  move 0.0003 RMS, and 85% of the changed texels keep a delta. The craters
+  themselves keep BC6H's stepping. Sea height and shroud are plain differences.
 
 Each run of the step reads the main project's `.terry` and links its layers as
 they are then, including any layers added in Terry. It first removes the links
@@ -515,72 +521,44 @@ dressing (2,800 entities on the combi map) and not one faction's own props (the
 
 ## Notes
 
-- **Heightmap reconstruction.** BC6H compresses the height map in 4x4 blocks,
-  snapping each block onto a handful of levels, which shows up as visible
-  plateaus. In game you never see them, because the terrain is *shaded* from
-  `lf_normal.dds` rather than from the geometry's own derivatives - so
-  `HeightReconstructor` aims at a height field whose own normals match that
-  normal map, with the height map supplying only what a gradient field cannot
-  know: absolute elevation and long-wavelength shape.
-
-  Measuring the two textures against each other decides who owns which scale.
-  Their coherence on `wh3_main_combi_map_1`:
-
-  | wavelength | 256tx | 128tx | 64tx | 32tx | <=16tx |
-  |---|---|---|---|---|---|
-  | coherence | 0.97 | 0.96 | 0.63 | 0.22 | ~0.00 |
-
-  Below ~16 texels they agree about nothing: the height map is all BC6H
-  staircase, and the normal map's curl (0.73) exceeds its own gradient
-  variation (0.42), so it is not a consistent surface there either. Neither
-  input knows anything at those scales, and the honest output is a smooth
-  surface rather than either one's artifacts. So the solve is a three-way
-  crossover, minimising
+- **Heights come from the logic map.** The heightmap compile writes the
+  composited Height map twice. `full_height_map.dds` is BC6H, which snaps each
+  4x4 block onto a few interpolated half-float levels: the plateaus.
+  `full_logic_map.compressed_map` is 16 bits per texel at the same resolution,
+  quantised linearly over the map's own range:
 
   ```
-  ||grad(h) - g||^2  +  wd*||h - hq||^2  +  ws*||laplacian(h)||^2
-        normal map        height map           smoothness
-       (mid scales)   (long wavelengths)    (finest scales)
+  v = trunc((h - lo) * (1 / (hi - lo)) * 65535)     float32; lo, hi = header floats 1 and 4
   ```
 
-  On `wh3_main_combi_map_1` that takes RMS normal error from 11.89 to 5.25
-  degrees, roughness from 0.0122 to 0.0033, and flat 4-neighbourhoods from
-  24.1% to 3.5%, in ~5 minutes and 4.5 GB for 89M texels. Against exact
-  synthetic ground truth it averages 1.61 degrees of normal error where the raw
-  BC6H decode averages 9.45.
+  One step is (hi - lo) / 65535: 0.0007 on IEE, 0.0008 on vanilla combi, 0.0015
+  on The Old World. Its rows run south to north, the other way round from the
+  DDS. The Height map step decodes each texel to the middle of its step, and the
+  lowest and highest steps to lo and hi themselves, so the heights recompile to
+  the same logic map (`LogicMapHeights`). Measured on IEE
+  (`cr_combi_expanded_map_1`, 12800x7764) against its Terry source:
 
-  Those minutes are one conjugate-gradient solve over ~90M unknowns, and they
-  are by far the most expensive thing the tool does; the step logs its iteration
-  count and residual as it goes, so a long silence is progress rather than a
-  hang. It can be turned off - *Height map: recover detail from the normal map*
-  in the GUI, `--raw-height` on the command line - which writes the BC6H-decoded
-  heights as they are, block stepping included, in seconds.
+  | land height from | height RMS | height max | normal RMS | time |
+  |---|---|---|---|---|
+  | BC6H red channel | 0.0063 | 2.55 | 4.13 deg | seconds |
+  | the former solve against `lf_normal.dds` | 0.0326 | 6.15 | 6.59 deg | 468 s, ~8 GB |
+  | full_logic_map | 0.00021 | 0.00035 | 0.18 deg | 1.5 s to read |
 
-  Three things about it are easy to get wrong and worth knowing:
+  (Normals are the compile's own: 3x3 Sobel at spacing 4, before 8-bit and
+  DXT5nm.) Recompiling the decoded heights gives a byte-identical
+  full_logic_map on both IEE and The Old World. `lf_normal.dds` adds nothing,
+  since the compile derives it from the same heights. The BC6H red channel is
+  used only when the folder has no logic map of the height map's size, with a
+  warning in the log.
 
-  - `lf_normal.dds` is DXT5nm with **X in alpha and Y in green**. Reading them
-    the other way round drops the correlation between the normal's slope and
-    the height map's own finite differences from 0.65 to 0.001 - the solve then
-    integrates noise. Synthetic round-trip tests cannot catch this by
-    themselves, since they pack the normal with whatever convention they read
-    back; `HeightReconstructorTests` pins it explicitly instead.
-  - The height-to-slope scale is **fitted from the two maps**, not derived from
-    `world_width` - which before the DB lookup was often only the "width / 12"
-    guess. It has to be
-    fitted over a long baseline: at adjacent texels the two agree about nothing,
-    and including that band biases the fit high (0.048 against 0.031 over a
-    32-texel baseline, where the guess was 0.083).
-  - The normal map is **noisy, not blurred**. Box-smoothing the shipped one at
-    radius 1 changes it 19.6% but radius 4 only reaches 25.3% - white noise on a
-    smooth field. Modelling it as band-limited instead leads to badly mistuned
-    constants, so `RoundTrip.PackNormalDxt5nm` dithers before BC3 to reproduce
-    the real degradation.
-
-  `tools/HeightReconstructionBench` sweeps the tuning constants over synthetic
-  terrain with exact ground truth; `tools/RoughnessCheck` measures the banding
-  proxy on real output TIFFs. Note that height RMSE badly understates the
-  artifact - BC6H's plateaus put their error in the *derivative* while keeping
-  the height close - which is why the bench leads with normal-space error.
+  *Refine the heights with the normal map* (GUI, under Height map;
+  `--refine-height`; off by default) then moves each texel within its step to
+  fit `lf_normal.dds`, the compile's 3x3 Sobel of the same heights: on The Old
+  World normal RMS 0.287 to 0.222 deg and height RMS 0.00039 to 0.00034, still
+  recompiling to a byte-identical logic map, for about 2 more minutes (173 s
+  for the whole step, 232M texels, 4 cores) and ~8 GB. It only helps where
+  `lf_normal.dds` was made from the same heights; IEE's, for one, keeps
+  vanilla's normals (of CA's own heights) in the vanilla areas.
 - **The snow mask is stretched.** Terry's SnowMask is a quarter of the height map,
   like the tree and corruption maps (2880x1941 on combi), but `snow_mask.dds` is
   one pixel bigger each way, rounded up to whole BC4 blocks (2884x1944). BOB
@@ -598,9 +576,9 @@ dressing (2,800 entities on the combi map) and not one faction's own props (the
   both surfaces: land in red, sea bed in green, blue unused. The Height map step
   writes both (`.height` and `.sea_height`), matching the pair CA's projects
   carry - on the combi map the sea bed runs -108.94 to 0.97 with most of it
-  sitting at the -0.913 shelf. Only the land surface is solved against
-  `lf_normal.dds`, which describes that surface alone; the sea bed is written as
-  decoded.
+  sitting at the -0.913 shelf. The land is read from the logic map instead (see
+  *Heights come from the logic map*); the sea bed has no other copy and is
+  written as decoded.
 - 3K tile databases are supported via the Game setting (version quirk). Tile
   colours need no such setting: they are read from whichever `_settings.bin`
   ships with the tile database, so a title with different tile sets renders

@@ -114,8 +114,8 @@ public sealed class Decompiler(DecompileSettings settings)
         Add(StepId.Layers, "Prop layers",
             "global_props.bin + global_props_sound.bin -> per-province .layer files, sounds in a 'sound' logical layer (nested in 'uses_culture_mask' when culture-masked)" +
             "; river props become river splines again, fitted to their baked meshes");
-        Add(StepId.Height, "Height map", "full_height_map.dds (BC6H) -> .height + .sea_height 32-bit float TIFFs" +
-            (s.ReconstructHeightFromNormals ? "; the land height de-quantized against lf_normal.dds when present" : ", exactly as decoded"));
+        Add(StepId.Height, "Height map",
+            "full_logic_map.compressed_map (land) + full_height_map.dds (BC6H, sea bed) -> .height + .sea_height 32-bit float TIFFs");
         Add(StepId.HeightShroud, "Shroud height map", "shroud_heights.dds -> 32-bit float .height_shroud TIFF");
         Add(StepId.Blend, "Blend map", "global_map/global_blend.dds -> indexed .blend TIFF");
         Add(StepId.ColorOverlay, "Colour overlay", "colour_overlay.dds -> RGBA .color_overlay TIFF");
@@ -1116,31 +1116,44 @@ public sealed class Decompiler(DecompileSettings settings)
     // ---------------------------------------------------------------- images
 
     /// <summary>
-    /// full_height_map.dds holds both height maps Terry wants: the land surface in red and
-    /// the sea bed in green (blue is unused). The sea bed is written as decoded - only the
-    /// land surface is worth solving against the normal map, which describes it alone.
+    /// The land height comes from full_logic_map.compressed_map, a 16-bit copy of the same
+    /// Height map at full resolution (see <see cref="LogicMapHeights"/>); full_height_map.dds
+    /// carries the sea bed in green (red is the land again, BC6H-quantised; blue is unused).
+    /// Without a logic map of the same size the land is the BC6H decode, block stepping included.
     /// </summary>
     private void RunHeight(Action<string> log, TerryIdGenerator ids, Action<double> progress)
     {
         var dds = DdsTexture.Load(In("full_height_map.dds"));
         log($"full_height_map.dds: {dds.Width}x{dds.Height} {dds.Format}");
-        var decoded = dds.DecodeChannelsFloat([0, 1], f => progress(f * 0.3));
 
         // Devastated project: the craters as height differences, which add to the main project's
-        // heights (already reconstructed against the normals there, so none is done here).
+        // heights. The devastate pieces carry no logic map: the land craters are the devastated BC6H
+        // over vanilla's logic-map heights (what the main project has), the noise masked out.
         if (_src.IsDevastated)
         {
+            var decoded = dds.DecodeChannelsFloat([0, 1], f => progress(f * 0.3));
             bool land = BaseMap("height", dds.Width, dds.Height, log) != null;
             bool sea = BaseMap("sea_height", dds.Width, dds.Height, log) != null;
             if (!land && !sea)
                 return;
             var vanilla = DdsTexture.Load(VanillaIn("full_height_map.dds")).DecodeChannelsFloat([0, 1], f => progress(0.3 + f * 0.3));
+            float[]? logicBase = null;
+            if (land && File.Exists(VanillaIn("full_logic_map.compressed_map")))
+            {
+                logicBase = LogicMapHeights.Read(VanillaIn("full_logic_map.compressed_map"), out int lw, out int lh);
+                if (lw != dds.Width || lh != dds.Height)
+                    logicBase = null;
+            }
+            if (land && logicBase == null)
+                log("Warning: no vanilla full_logic_map.compressed_map of the height map's size: the land craters are BC6H differences.");
             foreach (var (channel, suffix, wanted) in new[] { (1, "sea_height", sea), (0, "height", land) })
             {
                 if (!wanted)
                     continue;
                 float[] delta = decoded[channel];
-                long changed = DevastationLayers.Delta(vanilla[channel], delta);
+                long changed = channel == 0 && logicBase != null
+                    ? DevastationLayers.MaskedDelta(vanilla[0], delta, logicBase, dds.Width, dds.Height)
+                    : DevastationLayers.Delta(vanilla[channel], delta);
                 TryWriteDevastation(ids, suffix, null, changed, p =>
                 {
                     var (data, w, h) = Resize(delta, dds.Width, dds.Height, Sampling.Linear, log, fill: [0f]);
@@ -1150,50 +1163,63 @@ public sealed class Decompiler(DecompileSettings settings)
             }
             return;
         }
-        float[] heights = decoded[0];
 
-        // Written first so its memory is back before the land solve, which needs several GB.
-        string seaPath = Out($"{_src.MapName}.sea_height.{ids.Next()}.tif");
-        var seaMap = Resize(decoded[1], dds.Width, dds.Height, Sampling.Linear, log);
-        ScaleHeights(seaMap.Data);
-        TiffWriter.WriteFloat32(seaPath, seaMap.Width, seaMap.Height, seaMap.Data, f => progress(0.3 + f * 0.05));
-        seaMap = default;
-        log($"Wrote {Path.GetFileName(seaPath)} (sea bed, green channel)");
-        decoded = null!;
-
-        string normalPath = In("lf_normal.dds");
-        if (!_s.ReconstructHeightFromNormals)
+        string logicPath = In("full_logic_map.compressed_map");
+        float[]? heights = null;
+        if (!File.Exists(logicPath))
         {
-            log("Height reconstruction is off: writing the BC6H-quantized heights as decoded.");
-        }
-        else if (File.Exists(normalPath))
-        {
-            var normalDds = DdsTexture.Load(normalPath);
-            if (normalDds.Width == dds.Width && normalDds.Height == dds.Height)
-            {
-                log($"lf_normal.dds: {normalDds.Width}x{normalDds.Height} {normalDds.Format} - recovering sub-quantization detail");
-                byte[] normalRgba = normalDds.DecodeRgba8(f => progress(0.35 + f * 0.1));
-                // Only a hint: the reconstructor fits the height-to-slope scale from the two
-                // maps directly, which matters when world_width is only the /12 guess.
-                double texelSizeHint = ResolveWorldWidth(log) / dds.Width;
-                heights = HeightReconstructor.Reconstruct(heights, dds.Width, dds.Height, normalRgba, texelSizeHint,
-                    log, f => progress(0.45 + f * 0.5));
-            }
-            else
-            {
-                log($"Warning: lf_normal.dds is {normalDds.Width}x{normalDds.Height}, height map is {dds.Width}x{dds.Height} - skipping correction.");
-            }
+            log("Warning: no full_logic_map.compressed_map: the land height is the BC6H decode, block stepping included.");
         }
         else
         {
-            log("No lf_normal.dds found; writing raw BC6H-quantized heights (visible block stepping possible).");
+            var logic = LogicMapHeights.Load(logicPath);
+            if (logic.Width != dds.Width || logic.Height != dds.Height)
+            {
+                log($"Warning: full_logic_map.compressed_map is {logic.Width}x{logic.Height}, the height map {dds.Width}x{dds.Height}: " +
+                    "the land height is the BC6H decode, block stepping included.");
+            }
+            else if (_s.RefineHeightWithNormals && File.Exists(In("lf_normal.dds")))
+            {
+                var normalDds = DdsTexture.Load(In("lf_normal.dds"));
+                if (normalDds.Width == dds.Width && normalDds.Height == dds.Height)
+                {
+                    log("Land height from full_logic_map.compressed_map, refined against lf_normal.dds");
+                    heights = LogicMapHeights.Refine(logic, normalDds.DecodeRgba8(), log, f => progress(f * 0.3));
+                }
+                else
+                {
+                    log($"Warning: lf_normal.dds is {normalDds.Width}x{normalDds.Height}, the height map {dds.Width}x{dds.Height}: not refined.");
+                    heights = LogicMapHeights.Decode(logic);
+                }
+            }
+            else
+            {
+                if (_s.RefineHeightWithNormals)
+                    log("Warning: no lf_normal.dds: the land height is not refined.");
+                log("Land height from full_logic_map.compressed_map");
+                heights = LogicMapHeights.Decode(logic);
+            }
         }
+        progress(0.3);
+
+        var channels = dds.DecodeChannelsFloat(heights == null ? [0, 1] : [1], f => progress(0.3 + f * 0.3));
+        heights ??= channels[0];
+        float[] seaBed = channels[^1];
+        channels = null!;
+
+        string seaPath = Out($"{_src.MapName}.sea_height.{ids.Next()}.tif");
+        var seaMap = Resize(seaBed, dds.Width, dds.Height, Sampling.Linear, log);
+        seaBed = null!;
+        ScaleHeights(seaMap.Data);
+        TiffWriter.WriteFloat32(seaPath, seaMap.Width, seaMap.Height, seaMap.Data, f => progress(0.6 + f * 0.2));
+        seaMap = default;
+        log($"Wrote {Path.GetFileName(seaPath)} (sea bed, green channel)");
 
         string path = Out($"{_src.MapName}.height.{ids.Next()}.tif");
         var landMap = Resize(heights, dds.Width, dds.Height, Sampling.Linear, log);
         heights = null!;
         ScaleHeights(landMap.Data);
-        TiffWriter.WriteFloat32(path, landMap.Width, landMap.Height, landMap.Data, f => progress(0.95 + f * 0.05));
+        TiffWriter.WriteFloat32(path, landMap.Width, landMap.Height, landMap.Data, f => progress(0.8 + f * 0.2));
         log($"Wrote {Path.GetFileName(path)}");
     }
 

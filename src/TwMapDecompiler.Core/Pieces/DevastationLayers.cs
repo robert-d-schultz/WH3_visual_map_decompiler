@@ -43,6 +43,74 @@ public static class DevastationLayers
         _ => throw new ArgumentOutOfRangeException(nameof(mode)),
     };
 
+    /// <summary>
+    /// The land craters over the logic-map heights the main project has (<see cref="Imaging.LogicMapHeights"/>),
+    /// written into <paramref name="devastated"/>: devastated BC6H - <paramref name="baseHeights"/> in the texels
+    /// whose BC6H blocks the pieces change, 0 elsewhere. CA re-encoded every block of a piece, so most of a
+    /// piece differs by BC6H noise alone; the delta is kept where its magnitude, blurred (sigma 2 texels), is
+    /// over 0.02 to 0.05 (smoothstep). Measured on wh3_main_combi_map_devastate_1, with vanilla's own BC6H
+    /// noise in the same texels as the test: 1% of that noise survives (its large-error tail), the craters
+    /// (|delta| over 0.1) move 0.0003 RMS, and 85% of the changed texels keep a delta. Blurring the values too
+    /// would flatten chasm walls (0.04 RMS at sigma 1). Returns the number of nonzero texels.
+    /// </summary>
+    public static long MaskedDelta(float[] vanillaBc6h, float[] devastated, float[] baseHeights, int width, int height)
+    {
+        long n = (long)width * height;
+        var magnitude = new float[n];
+        for (long i = 0; i < n; i++)
+        {
+            float d = devastated[i] == vanillaBc6h[i] ? 0 : devastated[i] - baseHeights[i];
+            devastated[i] = d;
+            magnitude[i] = Math.Abs(d);
+        }
+        magnitude = Blur(magnitude, width, height, 2f);
+        long changed = 0;
+        for (long i = 0; i < n; i++)
+        {
+            float t = Math.Clamp((magnitude[i] - 0.02f) / 0.03f, 0, 1);
+            devastated[i] *= t * t * (3 - 2 * t);
+            if (devastated[i] != 0)
+                changed++;
+        }
+        return changed;
+    }
+
+    /// <summary>Separable Gaussian, edges clamped.</summary>
+    private static float[] Blur(float[] source, int width, int height, float sigma)
+    {
+        int radius = (int)Math.Ceiling(sigma * 3);
+        var kernel = new float[2 * radius + 1];
+        for (int i = -radius; i <= radius; i++)
+            kernel[i + radius] = MathF.Exp(-i * i / (2 * sigma * sigma));
+        float sum = kernel.Sum();
+        for (int i = 0; i < kernel.Length; i++)
+            kernel[i] /= sum;
+        var across = new float[source.LongLength];
+        var result = new float[source.LongLength];
+        Parallel.For(0, height, y =>
+        {
+            long row = (long)y * width;
+            for (int x = 0; x < width; x++)
+            {
+                float acc = 0;
+                for (int j = -radius; j <= radius; j++)
+                    acc += kernel[j + radius] * source[row + Math.Clamp(x + j, 0, width - 1)];
+                across[row + x] = acc;
+            }
+        });
+        Parallel.For(0, height, y =>
+        {
+            for (int x = 0; x < width; x++)
+            {
+                float acc = 0;
+                for (int j = -radius; j <= radius; j++)
+                    acc += kernel[j + radius] * across[(long)Math.Clamp(y + j, 0, height - 1) * width + x];
+                result[(long)y * width + x] = acc;
+            }
+        });
+        return result;
+    }
+
     /// <summary>devastated - vanilla, written into <paramref name="devastated"/>; returns the number of texels that differ.</summary>
     public static long Delta(float[] vanilla, float[] devastated)
     {

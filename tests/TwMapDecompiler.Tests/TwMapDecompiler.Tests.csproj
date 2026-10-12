@@ -15,7 +15,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\TwMapDecompiler.Core\TwMapDecompiler.Core.csproj" />
-    <ProjectReference Include="..\..\tools\SyntheticTerrain\SyntheticTerrain.csproj" />
   </ItemGroup>
 
 </Project>
