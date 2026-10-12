@@ -19,7 +19,20 @@ Output: <AK>/raw_data/terrain/campaigns/<map>/           campaign Terry project
 | [src/TwMapDecompiler.App](src/TwMapDecompiler.App/) | WPF GUI |
 | [src/TwMapDecompiler.Cli](src/TwMapDecompiler.Cli/) | Command-line runner (same pipeline, scriptable) |
 
-Build and run (requires .NET 8 SDK):
+Prebuilt Windows binaries are on the [Releases](https://github.com/robert-d-schultz/WH3_visual_map_decompiler/releases)
+page: `TwMapDecompiler.App.exe` (GUI) and `TwMapDecompiler.Cli.exe`, self-contained,
+so no .NET install is needed. RPFM 5 is still required (see below).
+
+To make the release zip:
+
+```
+dotnet publish src/TwMapDecompiler.App -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
+dotnet publish src/TwMapDecompiler.Cli -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
+```
+
+The version is set in [Directory.Build.props](Directory.Build.props).
+
+Build and run from source (requires .NET 8 SDK):
 
 ```
 dotnet build
