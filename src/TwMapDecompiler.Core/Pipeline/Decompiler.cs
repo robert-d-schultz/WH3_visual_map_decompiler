@@ -680,11 +680,14 @@ public sealed class Decompiler(DecompileSettings settings)
     /// masks come from the .culture file beside it. Only what the pieces hold is written: outside the
     /// event areas the game keeps the vanilla map's props. The one exception is the map-wide
     /// global_props_sound_&lt;type&gt;.bin files: the few sound emitters they hold that no piece does
-    /// (placed outside every event area) go into a _global layer, see <see cref="WriteUnpiecedSounds"/>.
+    /// (placed outside every event area) go into a _global layer, see <see cref="WriteGlobalLayer"/>.
+    /// The rivers are the other: every river of the vanilla map, with the devastate map's material
+    /// (see <see cref="DevastatedRivers"/>), in its area's layer or in _global.
     /// </summary>
     private void RunPieceLayers(Action<string> log, TerryIdGenerator ids, CancellationToken ct)
     {
         var pieces = _devastatePieces!;
+        var (pieceRivers, unpiecedRivers) = DevastatedRivers(pieces.Pieces, log);
         var areaNames = (_src.EventAreas?.Areas ?? [])
             .GroupBy(a => $"{a.Color.R:x2}{a.Color.G:x2}{a.Color.B:x2}")
             .ToDictionary(g => g.Key, g => g.First().Key, StringComparer.OrdinalIgnoreCase);
@@ -722,6 +725,7 @@ public sealed class Decompiler(DecompileSettings settings)
             }
 
             var baseObjects = new CompiledBmd(layerName);
+            baseObjects.Props.AddRange(pieceRivers[piece]);
             var groups = new SortedDictionary<string, CompiledBmd>(StringComparer.Ordinal);
             foreach (string bin in Directory.EnumerateFiles(piece.Folder, "*.bin").Order(StringComparer.OrdinalIgnoreCase))
             {
@@ -763,7 +767,7 @@ public sealed class Decompiler(DecompileSettings settings)
                 exportTotals[type] = exportTotals.GetValueOrDefault(type) + group.EntityCount;
         }
 
-        entities += WriteUnpiecedSounds(writer, pieceSounds, log);
+        entities += WriteGlobalLayer(writer, pieceSounds, unpiecedRivers, log);
 
         log($"{pieces.Pieces.Count} event area layers, {entities} entities total" +
             (exportTotals.Count > 0 ? $" ({string.Join(", ", exportTotals.Select(t => $"{t.Value} {t.Key}"))})" : ""));
@@ -776,15 +780,117 @@ public sealed class Decompiler(DecompileSettings settings)
     }
 
     /// <summary>
-    /// The devastate map also ships map-wide global_props_sound[_&lt;type&gt;].bin files. Nearly every
-    /// emitter in them is one a piece already holds; the rest (5 on the combi map) lie outside every
-    /// event area, so no piece carries them. Those go into a _global layer, each in its export type's
-    /// logical layer as in the pieces' layers. Returns how many were written.
+    /// The devastated map's rivers, as CA's devastated project has them. The devastate map's models/ folder
+    /// holds every river of the vanilla map under the same file name, with the same mesh (the combi map's 206:
+    /// 127 of the files differ, in two header padding bytes only), and the material CA gave it there: the
+    /// water or blood river material, or for some (26 on combi) cwb_campaign_river_lava. So each of the
+    /// vanilla map's river props is pointed at the devastate map's model of the same name, which gives it that
+    /// material when it is written as a spline, and goes into the layer of the event area its position is in
+    /// (<see cref="DevastatedMap.MaskPixelAt"/>). Rivers in no area are returned apart, for _global.
+    /// BOB lists a river spline whose material contains cwb_campaign_river_lava in the rivers file of the
+    /// piece its position is in, and the game turns the live river at that x, z to lava while the area is
+    /// devastated (docs/event-area-pieces.md). Splines never go into a piece's objects, so the other rivers
+    /// change nothing in the build; they are there because CA's project has them. A river with no model in
+    /// the devastate map keeps the vanilla map's (and its material).
     /// </summary>
-    private int WriteUnpiecedSounds(TerryLayerWriter writer, Dictionary<string, List<BmdSoundEmitter>> pieceSounds, Action<string> log)
+    private (Dictionary<EventPiece, List<BmdProp>> PerPiece, List<BmdProp> Unpieced) DevastatedRivers(
+        IReadOnlyList<EventPiece> pieces, Action<string> log)
+    {
+        var perPiece = pieces.ToDictionary(p => p, _ => new List<BmdProp>());
+        var unpieced = new List<BmdProp>();
+        string vanillaModels = $"terrain/campaigns/{_src.VanillaMapName}/models/";
+        var rivers = GlobalPropsParser.Parse(Path.Combine(_src.CampaignFolder!, "global_props.bin"), _src.VanillaMapName, _src.Cultures!)
+            .Layers.SelectMany(l => l.Props)
+            .Where(p => !p.IsDecal && IsRiverModel(p.Path))
+            .GroupBy(p => p.Path.Replace('\\', '/'), StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var first = g.First();
+                foreach (var twin in g.Skip(1))
+                    first.CultureMask |= twin.CultureMask;
+                return first;
+            })
+            .ToList();
+        if (rivers.Count == 0)
+        {
+            log("Rivers: the vanilla map has none");
+            return (perPiece, unpieced);
+        }
+
+        var maskDds = DdsTexture.Load(Path.Combine(_src.CampaignFolder!, "event_area_mask.dds"));
+        byte[] mask = maskDds.DecodeGray8();
+        var pieceOfIndex = new EventPiece?[256];
+        foreach (var piece in pieces)
+            pieceOfIndex[DevastatedMap.AreaIndex(piece, mask, maskDds.Width)] = piece;
+        float worldWidth = (float)ResolveWorldWidth(log);
+
+        int retargeted = 0, otherMaterial = 0;
+        var materials = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        foreach (var river in rivers)
+        {
+            string file = Path.GetFileName(river.Path.Replace('\\', '/'));
+            string vanillaModel = Path.Combine(_src.CampaignFolder!, "models", file);
+            string devastateModel = Path.Combine(_src.DevastateFolder!, "models", file);
+            if (File.Exists(devastateModel))
+            {
+                river.Path = $"terrain/campaigns/{_src.DevastateMapName}/models/{file}";
+                retargeted++;
+                string? material = Material(devastateModel);
+                if (material != null && File.Exists(vanillaModel) && material != Material(vanillaModel))
+                {
+                    otherMaterial++;
+                    materials[Path.GetFileName(material)] = materials.GetValueOrDefault(Path.GetFileName(material)) + 1;
+                }
+            }
+
+            int pixel = DevastatedMap.MaskPixelAt((float)river.Transform.PosX, (float)river.Transform.PosZ, worldWidth, maskDds.Width, maskDds.Height);
+            if (pixel >= 0 && pieceOfIndex[mask[pixel]] is { } piece)
+                perPiece[piece].Add(river);
+            else
+                unpieced.Add(river);
+        }
+
+        log($"Rivers: the vanilla map's {rivers.Count}, {retargeted} of them with the devastate map's model" +
+            (retargeted < rivers.Count ? $" (the other {rivers.Count - retargeted} have none there and keep the vanilla map's)" : "") +
+            $"; {otherMaterial} with a material other than the vanilla map's" +
+            (materials.Count > 0 ? $" ({string.Join(", ", materials.Select(m => $"{m.Value} {m.Key}"))})" : "") +
+            $"; {rivers.Count - unpieced.Count} in an event area's layer, {unpieced.Count} in _global");
+        return (perPiece, unpieced);
+
+        bool IsRiverModel(string path)
+        {
+            string p = path.Replace('\\', '/');
+            return p.StartsWith(vanillaModels, StringComparison.OrdinalIgnoreCase)
+                   && p[vanillaModels.Length..].StartsWith("river_", StringComparison.OrdinalIgnoreCase)
+                   && p.EndsWith(".wsmodel", StringComparison.OrdinalIgnoreCase);
+        }
+
+        static string? Material(string wsmodel)
+        {
+            try
+            {
+                return System.Xml.Linq.XDocument.Load(wsmodel).Root?.Element("materials")?.Elements("material").FirstOrDefault()?.Value.Trim();
+            }
+            catch (System.Xml.XmlException)
+            {
+                return null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The devastated project's _global layer: what lies outside every event area. The devastate map
+    /// ships map-wide global_props_sound[_&lt;type&gt;].bin files. Nearly every emitter in them is one a
+    /// piece already holds; the rest (5 on the combi map) lie outside every event area, so no piece
+    /// carries them. Those go in, each in its export type's logical layer as in the pieces' layers, with
+    /// the rivers whose position is in no area (<paramref name="rivers"/>). Returns how many were written.
+    /// </summary>
+    private int WriteGlobalLayer(TerryLayerWriter writer, Dictionary<string, List<BmdSoundEmitter>> pieceSounds,
+        List<BmdProp> rivers, Action<string> log)
     {
         const string prefix = "global_props_sound";
         var baseObjects = new CompiledBmd(GlobalPropsParser.GlobalLayerName) { IsGlobal = true };
+        baseObjects.Props.AddRange(rivers);
         var groups = new List<(string ExportType, CompiledBmd Objects)>();
         foreach (string file in Directory.EnumerateFiles(_src.DevastateFolder!, $"{prefix}*.bin").Order(StringComparer.OrdinalIgnoreCase))
         {

@@ -5,8 +5,8 @@ namespace TwMapDecompiler.Core.Pieces;
 
 /// <summary>
 /// Builds the devastated map's tree and road lists: the vanilla lists with each event area's
-/// contents swapped for the devastate map's piece of that area. (Textures are swapped by
-/// <see cref="DdsPiecePatcher"/>.)
+/// contents swapped for the devastate map's piece of that area, and finds the area a world
+/// position is in. (Textures are swapped by <see cref="DdsPiecePatcher"/>.)
 /// </summary>
 public static class DevastatedMap
 {
@@ -20,6 +20,26 @@ public static class DevastatedMap
         if (first < 0)
             throw new InvalidDataException($"{piece.Folder}: the mask has no pixel set.");
         return eventMask[(piece.Y + first / piece.Width) * maskWidth + piece.X + first % piece.Width];
+    }
+
+    /// <summary>A world z is divided by this, besides the mask's pixels per world unit, to find its event-mask row (hex rows).</summary>
+    public const float HexRowScale = 1.15476f;
+
+    /// <summary>
+    /// The event-mask pixel (row-major, rows top-down) under a world position, as BOB puts an object or a
+    /// lava river into a piece: x and z in mask pixels, z divided by <see cref="HexRowScale"/> more, each
+    /// rounded half away from zero, in floats. AtlasWH3's native pieces step uses this rule and writes the
+    /// same rivers files as CA's combi map. -1 off the mask.
+    /// </summary>
+    public static int MaskPixelAt(float x, float z, float worldWidth, int maskWidth, int maskHeight)
+    {
+        float sx = maskWidth / worldWidth;
+        float sz = maskWidth / (worldWidth * HexRowScale);
+        int col = RoundAway(x * sx);
+        int row = maskHeight - RoundAway(z * sz) - 1;
+        return col < 0 || col >= maskWidth || row < 0 || row >= maskHeight ? -1 : row * maskWidth + col;
+
+        static int RoundAway(float v) => (int)(v > 0 ? v + 0.5f : v - 0.5f);
     }
 
     /// <summary>

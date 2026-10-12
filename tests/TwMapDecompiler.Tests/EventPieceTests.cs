@@ -161,6 +161,19 @@ public sealed class EventPieceTests : IDisposable
         Assert.Equal(16, merged.Tiles.Single(t => t.X == 30).Direction);
     }
 
+    [Fact]
+    public void A_world_position_maps_to_its_event_mask_pixel_by_bobs_rule()
+    {
+        // world 100 wide on a 100 x 50 mask: one pixel per unit across, 1.15476 units per row
+        int At(float x, float z) => DevastatedMap.MaskPixelAt(x, z, 100, 100, 50);
+
+        Assert.Equal(49 * 100 + 10, At(10.4f, 0));          // rows top-down: z 0 is the bottom row
+        Assert.Equal(49 * 100 + 11, At(10.5f, 0));          // halves round away from zero
+        Assert.Equal(0, At(-0.4f, 49 * DevastatedMap.HexRowScale));
+        Assert.Equal(-1, At(-0.6f, 0));                     // off the mask
+        Assert.Equal(-1, At(10, 50 * DevastatedMap.HexRowScale));
+    }
+
     private string WriteTiles(string name, (ushort X, ushort Y, uint Tile)[] tiles)
     {
         string folder = WritePiece($"event_{name}", new byte[6]);

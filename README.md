@@ -320,18 +320,33 @@ area swapped for its devastate piece:
     every emitter in them is also in a piece. The few that aren't (5 on the combi
     map, on event-area borders) go into a `_global` layer, inside their type's
     logical layer.
-  - The devastated project gets no **rivers**, like CA's devastate pieces. When
-    an area swaps to a piece, the game deletes what stands in the area, except
+  - The other exception is the **rivers**. The devastated project gets every
+    river of the vanilla map, as river splines (see [Rivers](#rivers)), with the
+    material CA gave it in the devastated map. The devastate map's `models/`
+    folder holds all of the vanilla map's rivers under the same names, with the
+    same meshes (206 on combi; 127 of the files differ, in two header padding
+    bytes only), 26 of them with `cwb_campaign_river_lava` instead of water. Each
+    river goes into the layer of the event area its position is in (BOB's rule,
+    `DevastatedMap.MaskPixelAt`), or into `_global` (20 on combi).
+  - Only the lava ones change the build. BOB lists a river spline whose material
+    contains `cwb_campaign_river_lava` in the `rivers` file of the devastate
+    piece its position is in (25 on combi, in 12 `_fire` areas; the 26th lies
+    outside every area). While an area is devastated, the game turns the live
+    river at each listed x, z to lava (see [docs/event-area-pieces.md](docs/event-area-pieces.md)).
+    Without these rivers a rebuilt map has no `rivers` files, and no river turns
+    to lava. BOB keeps river splines out of the pieces' objects, so the other 180
+    change nothing; they are there because CA's project has them.
+  - Only CA's choice makes a river lava: of the 186 rivers whose position is in an
+    event area, the 25 in fire areas are, and the 32 other rivers in fire areas
+    and every river in a chasm or crater area are not. BOB and the game do not
+    look at the area's type, so a lava river in a chasm area would turn to lava
+    there too.
+  - While rivers were decompiled as props, BOB put the ones in an event area
+    into the area's normal piece. Each time the area was restored, the game
+    loaded that copy on top of the river that stayed. A river in a piece is a
+    second copy: when an area swaps, the game deletes what stands in it except
     props whose material name contains `campaign_water_plane` or
-    `campaign_blood_river`. So the map-wide rivers stay, and a river in a piece
-    would be a second copy on top (see [docs/event-area-pieces.md](docs/event-area-pieces.md)).
-  - The main project's rivers are river splines again (see [Rivers](#rivers)),
-    so BOB keeps them out of the pieces and writes the devastate pieces' `rivers`
-    records (the rivers that turn to lava, 25 on combi), which it does only for
-    splines. While rivers were decompiled as props, BOB put the ones in an event
-    area into the area's normal piece. Each time the area was restored, the game
-    loaded that copy on top of the river that stayed, and a rebuilt map lost the
-    `rivers` records.
+    `campaign_blood_river`, so the map-wide rivers stay.
 - **Environment volumes** come from the devastate map's own
   `environment_collection.xml`, which has no devastation lighting.
 - The project's `global_lighting` is the main project's Weather environment. The

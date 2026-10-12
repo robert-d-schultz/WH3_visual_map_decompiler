@@ -213,12 +213,26 @@ RVA 0x2711250):
 
 So a record is found by its position alone, and nothing selects a model. The
 geometry stays the vanilla river's. The devastate map's `models/` folder holds
-all 206 rivers under the same file names (127 re-baked over the craters, and
-the same 26 with the lava material), but nothing shipped uses it. The 26 lava
-ones are the 25 listed, plus `river_17eddb13a82fedf` at (418, 78), which
-starts outside every area. BOB's apparent rule is a river spline with that lava
-material whose origin is in the area: a main project that has such rivers gets
-`rivers` files in its normal pieces too.
+all 206 rivers under the same file names, but nothing shipped uses it. Their
+meshes are the vanilla map's: 79 files are byte-identical, and the other 127
+differ only in two bytes of the RMV2 header (offsets 794-795, which are zero in
+the vanilla files: padding, not geometry). The `.wsmodel`s differ only in the
+material: 26 have `cwb_campaign_river_lava`, the rest the same water or blood
+river material as the vanilla map. So CA's devastated project held every river
+of the main project, unchanged, with the lava material on those 26.
+
+The 26 lava ones are the 25 listed, plus `river_17eddb13a82fedf` at (418, 78),
+whose position is outside every area. BOB's rule (bob_terrain 0x10d81, the
+TerrainObjects export, read for AtlasWH3) is a river spline whose material
+contains `cwb_campaign_river_lava` (`ECSpline::material().find(...)`), listed
+by its entity position (`ECTransform::position()`) in the piece whose area
+contains it. A main project that has such rivers gets `rivers` files in its
+normal pieces too.
+
+The area's type plays no part, in BOB or the game; CA chose the rivers. Of the
+206 combi rivers, 186 have their position in an event area: 57 in `_fire`
+areas, 53 in `_chasm` areas and 76 in `_crater` areas. The 25 lava ones are all
+in fire areas (12 of them), and the 32 other rivers in fire areas stay water.
 
 What follows from it:
 - A river prop only survives a swap if its material is a water or blood river
@@ -231,6 +245,12 @@ What follows from it:
   top of the one that was kept. It lasts until the area's next swap, because
   both swaps first unload what the area's previous piece brought in (RVA
   0x27336e0).
+- The `rivers` records come from the devastated project's river splines, so a
+  rebuilt map needs the lava ones there, at the main project's positions: the
+  game matches a record against the live (main map) river's x and z. Without
+  them BOB writes no `rivers` files and no river turns to lava. The decompiler
+  writes every vanilla river into the devastated project, with the devastate
+  map's material, as CA's project has them (see the README's devastated map).
 - Un-devastating is real. When an area drops out of the campaign's active
   event areas (script `deactivate_campaign_map_event_area`, console
   `event_area_deactivate`), RVA 0x2711428 queues the normal map's piece
