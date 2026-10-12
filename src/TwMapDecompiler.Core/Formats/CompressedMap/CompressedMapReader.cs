@@ -9,11 +9,12 @@ namespace TwMapDecompiler.Core.Formats.CompressedMap;
 /// </summary>
 public static class CompressedMapReader
 {
-    public sealed record Map16(int Width, int Height, ushort[] Pixels);
+    /// <param name="Values">The header's six floats; a logic map keeps its height range in [1] and [4].</param>
+    public sealed record Map16(int Width, int Height, ushort[] Pixels, float[] Values);
     public sealed record MapRgba(int Width, int Height, byte[] Pixels);
 
     private sealed record Header(
-        int MapWidth, int MapHeight, int BlockWidth, int BlockHeight,
+        int MapWidth, int MapHeight, int BlockWidth, int BlockHeight, float[] Values,
         string Encoding, uint[] Offsets, long BlockDataStart, uint BlockTableLength);
 
     private static Header ReadHeader(BinaryReader reader)
@@ -24,7 +25,9 @@ public static class CompressedMapReader
         int mapHeight = (int)reader.ReadUInt32();
         int blockWidth = (int)reader.ReadUInt32();
         int blockHeight = (int)reader.ReadUInt32();
-        reader.Skip(24);
+        var values = new float[6];
+        for (int i = 0; i < values.Length; i++)
+            values[i] = reader.ReadSingle();
         string encoding = reader.ReadU16String();
 
         uint offsetCount = reader.ReadUInt32();
@@ -36,7 +39,7 @@ public static class CompressedMapReader
         reader.Skip((int)(lengthCount * 2));
 
         uint blockTableLength = reader.ReadUInt32();
-        return new Header(mapWidth, mapHeight, blockWidth, blockHeight, encoding, offsets, reader.BaseStream.Position, blockTableLength);
+        return new Header(mapWidth, mapHeight, blockWidth, blockHeight, values, encoding, offsets, reader.BaseStream.Position, blockTableLength);
     }
 
     /// <summary>16-bit TABLE_INDEXED maps (e.g. full_logic_map.compressed_map).</summary>
@@ -60,7 +63,7 @@ public static class CompressedMapReader
             PlaceBlock(blockPixels, image, blockIndex, blocksPerRow, header);
         }
 
-        return new Map16(header.MapWidth, header.MapHeight, image);
+        return new Map16(header.MapWidth, header.MapHeight, image, header.Values);
     }
 
     private static void DecodeBlock(BinaryReader reader, ushort[] block, int pixelsPerBlock, string path)
